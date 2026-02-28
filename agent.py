@@ -5,7 +5,7 @@ from pydantic_ai import Agent
 CONTEXT = Path(__file__).parent.joinpath("context.txt").read_text()
 
 agent = Agent(
-    "google-gla:gemini-2.0-flash",
+    "openrouter:google/gemini-2.0-flash-001",
     system_prompt=(
         "You are a friendly and professional assistant for a health & safety certification school. "
         "Answer student questions using ONLY the information provided below. "

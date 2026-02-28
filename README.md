@@ -1,6 +1,6 @@
 # WhatsApp Bot for Health & Safety Certification School
 
-AI-powered WhatsApp bot that answers student queries about courses, certifications, schedules, and enrollment. Built with FastAPI, Pydantic AI, and Google Gemini 2.0 Flash.
+AI-powered WhatsApp bot that answers student queries about courses, certifications, schedules, and enrollment. Built with FastAPI, Pydantic AI, and Gemini 2.0 Flash via OpenRouter.
 
 If the bot can't answer a question from the knowledge base, it tells the student a human will follow up.
 
@@ -8,7 +8,7 @@ If the bot can't answer a question from the knowledge base, it tells the student
 
 - Python 3.11+
 - A [Meta Developer](https://developers.facebook.com/) account with a WhatsApp Business app
-- A [Google AI Studio](https://aistudio.google.com/) API key
+- An [OpenRouter](https://openrouter.ai/) API key
 
 ## Setup
 
@@ -35,7 +35,7 @@ Edit `.env` and fill in all four values:
 | `VERIFY_TOKEN` | Make up any random string (e.g. `mysecrettoken123`) — you'll use this same string when configuring the webhook in Meta |
 | `WHATSAPP_ACCESS_TOKEN` | Meta App Dashboard → WhatsApp → API Setup → generate a permanent System User token |
 | `WHATSAPP_PHONE_NUMBER_ID` | Meta App Dashboard → WhatsApp → API Setup → Phone number ID (numeric) |
-| `GOOGLE_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) → Create API key |
+| `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) → Create API key |
 
 ### 3. Add your school's knowledge base
 
@@ -105,7 +105,7 @@ Then add env vars via `railway variables set KEY=VALUE` or in the dashboard.
 ```
 whatsapp-bot/
 ├── main.py           # FastAPI webhook server (GET & POST /webhook)
-├── agent.py          # Pydantic AI agent with Gemini 2.0 Flash
+├── agent.py          # Pydantic AI agent with Gemini 2.0 Flash via OpenRouter
 ├── context.txt       # School knowledge base (you fill this in)
 ├── requirements.txt  # Python dependencies
 ├── pyproject.toml    # Ruff linter/formatter config
@@ -137,8 +137,8 @@ ruff format .
 
 1. A student sends a WhatsApp message
 2. Meta's servers POST the message to your `/webhook` endpoint
-3. The bot extracts the message text and sends it to Gemini 2.0 Flash with the school's context
-4. Gemini generates a response based solely on `context.txt`
+3. The bot extracts the message text and sends it to Gemini 2.0 Flash (via OpenRouter) with the school's context
+4. The model generates a response based solely on `context.txt`
 5. The bot sends the reply back via the WhatsApp Cloud API
 6. If the AI can't find an answer in the context, it tells the student a human will follow up
 7. If anything errors out, the bot sends a fallback message
@@ -147,4 +147,5 @@ ruff format .
 
 - Each message is handled independently (no conversation history). This keeps things simple and stateless.
 - No database is required.
-- The entire `context.txt` is stuffed into the system prompt. Keep it under ~5k words for best results with Gemini 2.0 Flash.
+- The entire `context.txt` is stuffed into the system prompt. Keep it under ~5k words for best results.
+- You can swap the model by changing the model string in `agent.py` to any [OpenRouter model](https://openrouter.ai/models).
