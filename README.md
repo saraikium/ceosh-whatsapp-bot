@@ -2,7 +2,33 @@
 
 AI-powered WhatsApp bot that answers student queries about courses, certifications, schedules, and enrollment. Built with FastAPI, Pydantic AI, and Gemini 2.0 Flash via OpenRouter.
 
-If the bot can't answer a question from the knowledge base, it tells the student a human will follow up.
+If the bot can't answer a question from the knowledge base, it tells the student a human will follow up and notifies the team.
+
+## How Students Use It
+
+Students text your **existing WhatsApp Business number** — the same number your team already uses. There is no separate bot number. The bot sits in front of your business number and auto-replies to incoming messages.
+
+- **Student texts your business number** → Meta forwards it to the bot → bot replies instantly
+- **Your team opens the WhatsApp Business app** → they see the same conversations and can reply manually at any time
+
+## What Happens When the Bot Can't Answer
+
+When a student asks something that isn't in the knowledge base:
+
+1. **The student** receives: "I don't have that information right now. Our team will reach out to you within 24 business hours."
+2. **The team member** (the `NOTIFICATION_PHONE_NUMBER`) receives a WhatsApp message from the bot:
+   ```
+   Student needs help:
+   Phone: 923001234567
+   Message: Do you offer evening classes for the NEBOSH diploma?
+
+   Reply to them from the WhatsApp Business app.
+   Send /pause 923001234567 here to pause the bot for this student.
+   ```
+3. The team member opens the **WhatsApp Business app**, finds the student's conversation, and replies directly.
+4. If the team member wants the bot to stop auto-replying to that student while they handle it, they text `/pause 923001234567` to the bot.
+
+**Important:** The `NOTIFICATION_PHONE_NUMBER` must be a team member's personal WhatsApp number — not the business number itself, since the bot cannot message its own number.
 
 ## Prerequisites
 
@@ -28,7 +54,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` and fill in all four values:
+Edit `.env` and fill in the values:
 
 | Variable | Where to get it |
 |---|---|
@@ -36,6 +62,8 @@ Edit `.env` and fill in all four values:
 | `WHATSAPP_ACCESS_TOKEN` | Meta App Dashboard → WhatsApp → API Setup → generate a permanent System User token |
 | `WHATSAPP_PHONE_NUMBER_ID` | Meta App Dashboard → WhatsApp → API Setup → Phone number ID (numeric) |
 | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) → Create API key |
+| `ADMIN_PHONE_NUMBERS` | Comma-separated list of admin WhatsApp numbers in international format (e.g. `923001234567,923009876543`) |
+| `NOTIFICATION_PHONE_NUMBER` | The WhatsApp number that receives handoff alerts when the bot can't answer a student |
 
 ### 3. Add your school's knowledge base
 
@@ -84,7 +112,7 @@ Copy the HTTPS URL ngrok gives you (e.g. `https://abc123.ngrok-free.app`).
 
 1. Push this repo to GitHub
 2. Go to [railway.app](https://railway.app/) → New Project → Deploy from GitHub repo
-3. Add the four environment variables in Railway's dashboard (Settings → Variables)
+3. Add all environment variables in Railway's dashboard (Settings → Variables)
 4. Railway auto-detects the `Procfile` and deploys
 5. Go to Settings → Networking → Generate Domain to get your public URL
 6. Update your Meta webhook URL to `https://your-app.up.railway.app/webhook`
@@ -133,19 +161,36 @@ ruff check --fix .
 ruff format .
 ```
 
-## How It Works
+## How It Works (Technical)
 
-1. A student sends a WhatsApp message
+1. A student sends a WhatsApp message to your business number
 2. Meta's servers POST the message to your `/webhook` endpoint
-3. The bot extracts the message text and sends it to Gemini 2.0 Flash (via OpenRouter) with the school's context
-4. The model generates a response based solely on `context.txt`
-5. The bot sends the reply back via the WhatsApp Cloud API
-6. If the AI can't find an answer in the context, it tells the student a human will follow up
-7. If anything errors out, the bot sends a fallback message
+3. If the sender is an admin and the message is a command (`/pause`, `/resume`, `/status`), it's handled as an admin action
+4. If the bot is paused for that student, the message is marked as read but the bot does not reply (the team handles it from the WhatsApp Business app)
+5. Otherwise, the bot sends the message text to Gemini 2.0 Flash (via OpenRouter) along with the school's knowledge base
+6. The model generates a response based solely on `context.txt`
+7. The bot sends the reply back via the WhatsApp Cloud API
+8. If the response indicates a handoff (answer not in the knowledge base), the bot also sends a notification to the team member's WhatsApp with the student's number and question
+9. If anything errors out, the bot sends a fallback message: "Our team will reach out to you within 24 business hours"
+
+## Admin Commands
+
+Admins (numbers listed in `ADMIN_PHONE_NUMBERS`) can text the bot directly to control it. These commands are sent as regular WhatsApp messages to your business number:
+
+| Command | What it does |
+|---|---|
+| `/pause 923001234567` | Pause the bot for that student — the bot stops replying so you can handle the conversation from the WhatsApp Business app |
+| `/resume 923001234567` | Re-enable the bot for that student |
+| `/status` | List all currently paused numbers |
+
+Phone numbers must be in international format without `+` (e.g. `923001234567`).
+
+**Note:** Admin commands are only recognized from numbers listed in `ADMIN_PHONE_NUMBERS`. Messages from any other number are treated as student queries.
 
 ## Notes
 
-- Each message is handled independently (no conversation history). This keeps things simple and stateless.
-- No database is required.
-- The entire `context.txt` is stuffed into the system prompt. Keep it under ~5k words for best results.
-- You can swap the model by changing the model string in `agent.py` to any [OpenRouter model](https://openrouter.ai/models).
+- **One number for everything** — the bot and your team share the same WhatsApp Business number. Students text the number, the bot replies, and your team can jump in from the WhatsApp Business app whenever needed.
+- **Stateless** — each message is handled independently (no conversation history). Keeps things simple.
+- **No database** — paused numbers are stored in memory and reset if the server restarts.
+- **Knowledge base size** — the entire `context.txt` is loaded into the system prompt. Keep it under ~5k words for best results.
+- **Swap models** — change the model string in `agent.py` to any [OpenRouter model](https://openrouter.ai/models).
